@@ -44,18 +44,19 @@ const registerUser = async (req, res, next) => {
         const { name, email, password } = req.body;
 
         const userExists = await User.findOne({ email });
-
-        if (userExists && userExists.active) {
+        // && userExists.active
+        if (userExists ) {
             return res.status(400).json({
                 success: false,
                 msg: 'Entered email id already registered with us. Login to continue'
             })
-        } else if (userExists && !userExists.active) {
-            return res.status(400).json({
-                success: false,
-                msg: 'Account created but need to active. A link sent with your register mobile no'
-            })
-        }
+        } 
+        // else if (userExists && !userExists.active) {
+        //     return res.status(400).json({
+        //         success: false,
+        //         msg: 'Account created but need to active. A link sent with your register mobile no'
+        //     })
+        // }
 
         const user = new User({
             name, email, password
@@ -63,38 +64,41 @@ const registerUser = async (req, res, next) => {
 
 
         //Generate 20 bit activation code ,crypto is build package of nadejs
-        crypto.randomBytes(20, function (err, buf) {
+        // crypto.randomBytes(20, function (err, buf) {
 
 
-            //Ensure the activation link is unique
-            user.activeToken = user._id + buf.toString('hex');
+        //     //Ensure the activation link is unique
+        //     user.activeToken = user._id + buf.toString('hex');
 
 
-            //set expiration time is 24 hours
-            user.activeExpires = Date.now() + 24 * 3600 * 1000;
+        //     //set expiration time is 24 hours
+        //     user.activeExpires = Date.now() + 24 * 3600 * 1000;
 
 
-            var link = process.env.NODE_ENV == 'development' ? `http://localhost:${process.env.PORT}/api/users/active/${user.activeToken}`
-                : `${process.env.api_host}/api/user/active/${user.activeToken}`;
+        //     var link = process.env.NODE_ENV == 'development' ? `http://localhost:${process.env.PORT}/api/users/active/${user.activeToken}`
+        //         : `${process.env.api_host}/api/user/active/${user.activeToken}`;
 
-            //Sending activation mail
-            mailer.send({
-                to: req.body.email,
-                subject: true,
-                html: 'Please click <a href="' + link + '">here</a> to activate your account.'
+        //     //Sending activation mail
+        //     mailer.send({
+        //         to: req.body.email,
+        //         subject: true,
+        //         html: 'Please click <a href="' + link + '">here</a> to activate your account.'
 
-            });
+        //     });
+
+
 
             //save user object 
             user.save(function (err, user) {
                 if (err) return next(err);
                 res.status(201).json({
                     success: true,
-                    msg: 'The activation link has been sent to' + user.email + ',please click the activation link '
+                    // msg: 'The activation link has been sent to' + user.email + ',please click the activation link in Spam folder '
+                    msg: 'Account Created Successfully. Please log in. '
                 })
             })
 
-        })
+        // })
 
 
 
@@ -109,45 +113,46 @@ const registerUser = async (req, res, next) => {
 
 }
 
-const activeToken = async (req, res, next) => {
-console.log("activeToken",req.params.activeToken);
-    //find the corresponding user
-    User.findOne({
-        activeToken: req.params.activeToken,
-        // activeExpires: {$gt: Date.now()}
-    }, function (err, user) {
-        if (err) return next(err);
+//activation Token
+// const activeToken = async (req, res, next) => {
+// console.log("activeToken",req.params.activeToken);
+//     //find the corresponding user
+//     User.findOne({
+//         activeToken: req.params.activeToken,
+//         // activeExpires: {$gt: Date.now()}
+//     }, function (err, user) {
+//         if (err) return next(err);
 
 
-        //if invalid activation code
-        if (!user) {
-            return res.status(400).json({
-                success: false,
-                msg: 'Your activation link is invalid'
-            });
-        }
+//         //if invalid activation code
+//         if (!user) {
+//             return res.status(400).json({
+//                 success: false,
+//                 msg: 'Your activation link is invalid'
+//             });
+//         }
 
-        if (user.active == true) {
-            return res.status(200).json({
-                success: false,
-                msg: 'Your account already activated go and login to use this app'
-            })
-        }
+//         if (user.active == true) {
+//             return res.status(200).json({
+//                 success: false,
+//                 msg: 'Your account already activated go and login to use this app'
+//             })
+//         }
 
-        //if not activated actiavte and save
-        user.active = true;
-        user.save(function (err, user) {
-            if (err) return next(err);
+//         //if not activated actiavte and save
+//         user.active = true;
+//         user.save(function (err, user) {
+//             if (err) return next(err);
 
 
-            //Activation success
-            res.json({
-                success: true,
-                msg: 'Activation success'
-            });
-        })
-    })
-};
+//             //Activation success
+//             res.json({
+//                 success: true,
+//                 msg: 'Activation success'
+//             });
+//         })
+//     })
+// };
 
 //Login Api
 const authUser = async (req,res) => {
@@ -226,7 +231,7 @@ const updateUserProfile = async (req, res) => {
 
 module.exports = {
     registerUser,
-    activeToken,
+    // activeToken,
     authUser,
     getUserProfile,
     updateUserProfile,

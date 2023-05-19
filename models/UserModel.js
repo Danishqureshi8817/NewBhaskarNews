@@ -20,12 +20,12 @@ const userSchema = mongoose.Schema(
         type: 'string',
         default: ''
     },
-    active:{
-        type: Boolean,
-        default: false
-    },
-    activeToken: String,
-    activeExpires: Date,
+    // active:{
+    //     type: Boolean,
+    //     default: false
+    // },
+    // activeToken: String,
+    // activeExpires: Date,
    }
 
 )
