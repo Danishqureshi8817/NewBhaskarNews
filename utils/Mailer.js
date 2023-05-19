@@ -5,15 +5,15 @@ var config = {
     host: 'smtp.gmail.com',
     port: 587,
     auth: {
-        user: 'danishqureshi8817@gmail.com',
-        pass: 'raqvdldkbwobihww',
+        user: 'ajitpradhan925@gmail.com',
+        pass: 'guopulchtjivpsat'
     }
 };
     
 var transporter = nodemailer.createTransport(config);
 
 var defaultMail = {
-    from: 'danishqureshi8817@gmail.com',
+    from: 'ajitteaches@gmail.com',
     text: 'test text',
 };
 

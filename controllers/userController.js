@@ -1,238 +1,374 @@
-const generateToken = require('../utils/generateToken');
-const User = require('../models/UserModel');
+const asyncHandler = require('express-async-handler')
+const generateToken = require('../utils/generateToken.js')
+const User = require('../models/userModel.js')
 var crypto = require('crypto');
-var mailer = require('../utils/Mailer');
-
+var mailer = require('../utils/mailer');
+const { generateOtp,verifyOtp } = require('../utils/otp.js');
 
 
 // @desc    Auth user & get token
 // @route   POST /api/users/login
 // @access  Public
+const authUser = asyncHandler(async (req, res) => {
+  const { email, password } = req.body
 
+  const user = await User.findOne({ email })
 
-// const authUser = asyncHandler(async (req, res) => {
-//   const { email, password } = req.body
-
-//   const user = await User.findOne({ email })
-
-//   if (user && (await user.matchPassword(password))) {
-//     res.json({
-//       _id: user._id,
-//       name: user.name,
-//       email: user.email,
-//       avatar: user.avatar,
-//       token: generateToken(user._id),
-//       favorites: user.favorites,
-//     })
-//   } else {
-//     res.status(401).json({
-//       success: false,
-//       msg: 'Unauthorized user'
-//     })
-//   }
-// })
-
-
+  if (user && (await user.matchPassword(password))) {
+    res.json({
+      _id: user._id,
+      name: user.name,
+      email: user.email,
+      avatar: user.avatar,
+      token: generateToken(user._id),
+      favorites: user.favorites,
+    })
+  } else {
+    res.status(401).json({
+      success: false,
+      msg: 'Unauthorized user'
+    })
+  }
+})
 
 // @desc    Register a new user
 // @route   POST /api/users
 // @access  Public
-const registerUser = async (req, res, next) => {
-    console.log(req.body)
+const registerUser = asyncHandler(async (req, res, next) => {
+  console.log(req.body)
 
-    try {
-        const { name, email, password } = req.body;
+  const { name, email, password } = req.body
+  const userExists = await User.findOne({ email })
 
-        const userExists = await User.findOne({ email });
-        // && userExists.active
-        if (userExists ) {
-            return res.status(400).json({
-                success: false,
-                msg: 'Entered email id already registered with us. Login to continue'
-            })
-        } 
-        // else if (userExists && !userExists.active) {
-        //     return res.status(400).json({
-        //         success: false,
-        //         msg: 'Account created but need to active. A link sent with your register mobile no'
-        //     })
-        // }
+  if (userExists) {
+    return res.status(400).json({
+      success: false,
+      msg: 'Entered email id already registered with us. Login to continue'
+    })
+  }
+  
 
-        const user = new User({
-            name, email, password
-        });
+  const user = new User({
+    name,
+    email,
+    password,
+  })
 
 
-        //Generate 20 bit activation code ,crypto is build package of nadejs
-        // crypto.randomBytes(20, function (err, buf) {
+    // save user object
+    user.save(function (err, user) {
+      if (err) return next(err);
+      res.status(201).json({
+        success: true,
+        msg: 'Account Created Sucessfully. Please log in.'
+      });
+    });
 
-
-        //     //Ensure the activation link is unique
-        //     user.activeToken = user._id + buf.toString('hex');
-
-
-        //     //set expiration time is 24 hours
-        //     user.activeExpires = Date.now() + 24 * 3600 * 1000;
-
-
-        //     var link = process.env.NODE_ENV == 'development' ? `http://localhost:${process.env.PORT}/api/users/active/${user.activeToken}`
-        //         : `${process.env.api_host}/api/user/active/${user.activeToken}`;
-
-        //     //Sending activation mail
-        //     mailer.send({
-        //         to: req.body.email,
-        //         subject: true,
-        //         html: 'Please click <a href="' + link + '">here</a> to activate your account.'
-
-        //     });
+  // if (user) {
+  //   res.status(201).json({
+  //     _id: user._id,
+  //     name: user.name,
+  //     email: user.email,
+  //     token: generateToken(user._id),
+  //   })
+  // } else {
+  //   res.status(400)
+  //   throw new Error('Invalid user data')
+  // }
+})
 
 
 
-            //save user object 
-            user.save(function (err, user) {
-                if (err) return next(err);
-                res.status(201).json({
-                    success: true,
-                    // msg: 'The activation link has been sent to' + user.email + ',please click the activation link in Spam folder '
-                    msg: 'Account Created Successfully. Please log in. '
-                })
-            })
+// @desc    Get user profile
+// @route   GET /api/users/profile
+// @access  Private
+const getUserProfile = asyncHandler(async (req, res) => {
+  const user = await User.findById(req.user._id)
 
-        // })
+  if (user) {
+    res.json({
+      _id: user._id,
+      name: user.name,
+      email: user.email,
+      avatar: user.avatar,
+      favorites: user.favorites,
+      otp: user.otp
+    })
+  } else {
+    res.status(404)
+    throw new Error('User not found')
+  }
+})
 
+// @desc    Update user profile
+// @route   PUT /api/users/profile
+// @access  Private
+const updateUserProfile = asyncHandler(async (req, res) => {
+  const user = await User.findById(req.user._id)
 
-
-    } catch (error) {
-        console.log(error);
-        res.status(500).json({
-            success: false,
-            msg: 'Server having some issues'
-        })
+  if (user) {
+    user.name = req.body.name || user.name;
+    user.email = req.body.email || user.email;
+    user.avatar = req.body.avatar || user.avatar;
+    if (req.body.password) {
+      user.password = req.body.password
     }
 
+    const updatedUser = await user.save()
 
-}
+    res.json({
+      _id: updatedUser._id,
+      name: updatedUser.name,
+      email: updatedUser.email,
+      avatar: updatedUser.avatar,
+      token: generateToken(updatedUser._id),
+    })
+  } else {
+    res.status(404)
+    throw new Error('User not found')
+  }
+})
 
-//activation Token
-// const activeToken = async (req, res, next) => {
-// console.log("activeToken",req.params.activeToken);
-//     //find the corresponding user
-//     User.findOne({
-//         activeToken: req.params.activeToken,
-//         // activeExpires: {$gt: Date.now()}
-//     }, function (err, user) {
-//         if (err) return next(err);
+// @desc    Get all users
+// @route   GET /api/users
+// @access  Private/Admin
+const getUsers = asyncHandler(async (req, res) => {
+  const users = await User.find({})
+  res.json(users)
+})
+
+// @desc    Delete user
+// @route   DELETE /api/users/:id
+// @access  Private/Admin
+const deleteUser = asyncHandler(async (req, res) => {
+  const user = await User.findById(req.params.id)
+
+  if (user) {
+    await user.remove()
+    res.json({ message: 'User removed' })
+  } else {
+    res.status(404)
+    throw new Error('User not found')
+  }
+})
+
+// @desc    Get user by ID
+// @route   GET /api/users/:id
+// @access  Private/Admin
+const getUserById = asyncHandler(async (req, res) => {
+  const user = await User.findById(req.params.id).select('-password')
+
+  if (user) {
+    res.json(user)
+  } else {
+    res.status(404)
+    throw new Error('User not found')
+  }
+})
+
+// @desc    Update user
+// @route   PUT /api/users/:id
+// @access  Private/Admin
+const updateUser = asyncHandler(async (req, res) => {
+  const user = await User.findById(req.params.id)
+
+  if (user) {
+    user.name = req.body.name || user.name
+    user.email = req.body.email || user.email
+
+    const updatedUser = await user.save()
+
+    res.json({
+      _id: updatedUser._id,
+      name: updatedUser.name,
+      email: updatedUser.email,
+    })
+  } else {
+    res.status(404)
+    throw new Error('User not found')
+  }
+})
 
 
-//         //if invalid activation code
-//         if (!user) {
-//             return res.status(400).json({
-//                 success: false,
-//                 msg: 'Your activation link is invalid'
-//             });
-//         }
+const resetPassword = asyncHandler(async(req,res) => {
 
-//         if (user.active == true) {
-//             return res.status(200).json({
-//                 success: false,
-//                 msg: 'Your account already activated go and login to use this app'
-//             })
-//         }
+  // console.log(verifyOtp(req.body.token));
+  console.log(req.body.token)
+  res.json({
+    token: verifyOtp(req.body.token)
+  })
+  // const user = await User.findById(req.user._id)
+  // const {oldPassword = ''} = req.body;
+  // // For old password
+  // if (user && (await user.matchPassword(oldPassword))) {
+  //   let randomOtp = Math.floor(100000 + Math.random() * 900000);
+  //   user.otp = randomOtp;
+  //   await user.save();
 
-//         //if not activated actiavte and save
-//         user.active = true;
-//         user.save(function (err, user) {
-//             if (err) return next(err);
+  //   mailer.send({
+  //     to: user.email,
+  //     subject: 'Reset your password. ReactNews',
+  //     html: `Your otp for reset password is ${randomOtp}`
+  //   });
+
+  //   res.status(200).json({
+  //     success: true,
+  //     msg: 'A Otp has been sent to your registered email address.'
+  //   })
+  // } else {
+  //   res.status(404).json({
+  //     success: false,
+  //     msg: 'Entered Old Password is Incorrect.'
+  //   })
+  // }
+});
+
+const addToFav = asyncHandler(async(req, res) => {
+    const newsId = req.params.newsId;
+    const userId = req.user._id;
+
+    // let obj = arr.find(o => o.name === 'string 1');
+    // check if exist news in fav array or not
+
+    let user = await User.findById(userId);
+    console.log("user", user)
+
+    let foundNews = user.favorites.find( obj => {
+      console.log(obj)
+      return obj.news == newsId
+    });
+
+    console.log("foundNews", foundNews)
+    if(foundNews) {
 
 
-//             //Activation success
-//             res.json({
-//                 success: true,
-//                 msg: 'Activation success'
-//             });
-//         })
-//     })
-// };
+    let newUserData = user.favorites.filter((obj) => {
+      return obj.news != newsId
+    })
 
-//Login Api
-const authUser = async (req,res) => {
-    const {email, password} = req.body;
 
-    const user = await User.findOne({email});
+    user.favorites = newUserData;
 
-    if(user && (await user.matchPassword(password))) {
-        res.json({
-            _id: user.id,
-            name: user.name,
-            email: user.email,
-            avatar: user.avatar,
-            token: generateToken(user._id)
+      await user.save()
 
-        })
-    } else {
-        res.status(401).json({
-            success: false,
-            msg: 'Unauthorized user'
-        })
+      return res.status(201).json({
+        success: true,
+        msg: 'Removed from your favorite lists.'
+      })
     }
-}
+
+   let user1 =  user.favorites.push({news: newsId});
+    await user.save();
+    console.log(user1)
+
+     res.status(201).json({
+      success: true,
+      msg: 'Added to your favorite lists.'
+    })
+
+})
 
 
-//Fetch Login user profile
-const getUserProfile = async (req,res) => {
-    const user = await User.findById(req.header._id);
 
-    if(user) {
-        res.json({
-            _id: user.id,
-            name: user.name,
-            email: user.email,
-            avatar: user.avatar,
-        })
-    } else {
-        res.status(404).json({
-            success: false,
-            msg: 'User not found'
-        })
-    }
-}
+const getFavorites = asyncHandler(async(req, res) => {
+  const userId = req.user._id;
+  const user = await User.findById(userId)
+    .populate({path: 'favorites.news',
+    populate: ('category')
+})
 
 
-//update user
-const updateUserProfile = async (req, res) => {
-    const user = await User.findById(req.header._id);
+  console.log(req)
+  res.json({
+    success: true,
+    data: user.favorites,
+    msg: 'Successfully fetched'
+  })
+})
 
-    if(user) {
-        user.name = req.body.name || user.name;
-        user.email = req.body.email || user.email;
-        user.avatar = req.body.avatar || user.avatar;
+
+const checkFavExistsOrNot = asyncHandler(async(req, res) => {
+  const userId = req.user._id;
+  const newsId = req.params.newsId
+
+  let user = await User.findById(userId);
+  console.log("user", user)
+
+  let foundNews = user.favorites.find( obj => {
+    console.log(obj)
+    return obj.news == newsId
+  });
+
+  console.log("foundNews", foundNews)
+  if(!foundNews) {
+    return res.json({
+      success: true,
+      exists: false,
+      msg: 'News id not exists in your favorite list.'
+    })
+  }
+  res.json({
+    success: true,
+    exists: true,
+    msg: 'News id exists in your favorite list.'
+  })
+
+})
 
 
-        const updatedUser = await user.save();
 
-        res.json({
-            _id: updatedUser.id,
-            name: updatedUser.name,
-            email: updatedUser.email,
-            avatar: updatedUser.avatar,
-            token: generateToken(updatedUser._id),
-    
-        })
-    } else {
-        res.status(404).json({
-            success: false,
-            msg: 'User not found'
-        })
-    }
+const removeFavorite = asyncHandler(async(req, res) => {
+  const userId = req.user._id;
+  const newsId = req.params.newsId
 
-   
-}
+  let user = await User.findById(userId);
+  console.log("user", user)
+
+  let foundNews = user.favorites.find( obj => {
+    console.log(obj)
+    return obj.news == newsId
+  });
+
+  console.log("foundNews", foundNews)
+  if(!foundNews) {
+    return res.json({
+      success: false,
+      msg: 'News id not exists in your favorite list.'
+    })
+  }
+
+
+  let newUserData = user.favorites.filter((obj) => {
+    return obj.news != newsId
+  })
+
+
+  user.favorites = newUserData;
+
+  await user.save()
+
+
+  res.json({
+    success: true,
+    data: newUserData,
+    msg: 'Successfully removed'
+  })
+
+})
 
 
 module.exports = {
-    registerUser,
-    // activeToken,
-    authUser,
-    getUserProfile,
-    updateUserProfile,
-};
+  authUser,
+  registerUser,
+  getUserProfile,
+  updateUserProfile,
+  getUsers,
+  deleteUser,
+  getUserById,
+  updateUser,
+  resetPassword,
+  addToFav,
+  getFavorites,
+  removeFavorite,
+  checkFavExistsOrNot
+}
