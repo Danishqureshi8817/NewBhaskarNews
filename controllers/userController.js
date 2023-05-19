@@ -2,7 +2,7 @@ const asyncHandler = require('express-async-handler')
 const generateToken = require('../utils/generateToken.js')
 const User = require('../models/userModel.js')
 var crypto = require('crypto');
-var mailer = require('../utils/mailer');
+
 const { generateOtp,verifyOtp } = require('../utils/otp.js');
 
 
